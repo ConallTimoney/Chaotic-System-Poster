@@ -5,6 +5,7 @@ using DataFramesMeta
 using Chain
 using CSV
 using ProgressMeter
+using Unitful
 include("./functions.jl")
 ##
 #=
@@ -34,9 +35,14 @@ power = 0.00000001 # adjusts how much the resulting poster glows
 extra_black_levels = 50 # number of extra black colors to add to the color gradient 
 N = 2 * 1e6 # number of cyclic iterations to complete 
 ω = 1.2 # drving ferquency of the oscillator
-x_pixels = 14044 # number of horizontal pixels in the resulting folder 
-y_pixels = x_pixels/√2 |> round |> Int 
 
+# height and width of the poster/canvas
+width = (60u"cm" |> u"inch") / u"inch"
+height = (40u"cm" |> u"inch") / u"inch"
+dpi = 300
+# R² - R > |c|
+y_pixels = (height * dpi + 1) |> Float64 |> floor |> Int
+x_pixels = (width * dpi + 1) |> Float64 |> floor |> Int
 
 # Here is the our modified duffing oscillator
 function modified_duffing(u0 = [1, 0.00001], ω = ω, f = 14.86, 
@@ -83,12 +89,12 @@ end
 
 ##
 
-poincare_data = make_poincare_data(;N = N)
+# poincare_data = make_poincare_data(;N = N)
 
-
-CSV.write("./sim_data/" * 
-          "mod_duffing,N=$N.csv",
-          DataFrame(poincare_data))
+# mkpath("./sim_data")
+# CSV.write("./sim_data/" * 
+#           "mod_duffing,N=$N.csv",
+#           DataFrame(poincare_data))
 
 ##
 
@@ -107,7 +113,7 @@ matrix_to_plot = distances_matrix(poincare_data,
                                   y_column = 2)
 
 ##
-
+mkpath("./plots_data")
 CSV.write("./plots_data/" * 
           "mod_duffing,N=$N,x=$x_pixels.csv",
           DataFrame(matrix_to_plot))
@@ -118,28 +124,33 @@ matrix_to_plot = CSV.read("./plots_data/mod_duffing,N=$N,x=$x_pixels.csv",
                     Array
 
 
-plot = faded_plot(matrix_to_plot, x_pixels, y_pixels, 
-                  power  = power, extra_black_levels = extra_black_levels, 
-                  calculate_distnaces = false);
-
-matrix_to_plot = nothing 
+plot = faded_plot(matrix_to_plot
+                  , x_pixels
+                  , y_pixels 
+                  , power  = 0.08
+                  , extra_black_levels = extra_black_levels 
+                  , calculate_distances = false
+                  );
+plot
+# matrix_to_plot = nothing 
 
 ##
+mkpath("duffing_plots")
 savefig(
     plot
-    ,"./plots/mod_duffing,power=$power,black_levels=$extra_black_levels,x=$x_pixels,N=$N.svg"
+    ,"./duffing_plots/mod_duffing,power=$power,black_levels=$extra_black_levels,x=$x_pixels,N=$N.svg"
 )
-##
+
 
 savefig(
     plot
-    ,"./plots/mod_duffing,power=$power,black_levels=$extra_black_levels,x=$x_pixels,N=$N.png"
+    ,"./duffing_plots/mod_duffing,power=$power,black_levels=$extra_black_levels,x=$x_pixels,N=$N.png"
 )
 
-##
+
 
 
 savefig(
     plot
-    ,"./plots/mod_duffing,power=$power,black_levels=$extra_black_levels,x=$x_pixels,N=$N.ps"
+    ,"./duffing_plots/mod_duffing,power=$power,black_levels=$extra_black_levels,x=$x_pixels,N=$N.ps"
 )
