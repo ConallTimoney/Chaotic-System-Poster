@@ -1,8 +1,15 @@
-using Chain 
 using Plots 
+using Chain 
 using NearestNeighbors
 using Statistics
 using ProgressMeter
+using DynamicalSystems
+using DataFrames
+using DataFramesMeta
+using DynamicPipe
+using ProgressMeter
+using ColorSchemes
+
 # here we define soem useful functiuons
 ## 
 """
@@ -14,7 +21,7 @@ function distances_matrix(sim_data
                           ;x_range_mulitplier = 1.05
                           ,y_range_mulitplier = 1.05
                           ,y_column = 2)
-
+    sim_data = copy(sim_data)
     # conver to array if needed 
     if typeof(sim_data) == DataFrame
         sim_data = Array(sim_data)
@@ -22,6 +29,8 @@ function distances_matrix(sim_data
         sim_data = [sim_data[i,j] for i in 1:size(sim_data)[1], j in 1:size(sim_data)[2]]
     end
     
+    # convert to floats 
+    sim_data = convert(Array{Float64}, sim_data)
     # center the image at 0, 0
     sim_data[:, 1] = sim_data[:, 1] .- mean(sim_data[:, 1])
     sim_data[:, 2] = sim_data[:, 2] .- mean(sim_data[:, 2])
@@ -40,13 +49,13 @@ function distances_matrix(sim_data
     end
     
     
-    x_range = @chain sim_data begin
-        _[:,1]
-        [maximum(_), minimum(_)]
-        abs.(_)
-        maximum
-        _ * x_range_mulitplier
-    end
+    x_range = sim_data |>
+        @>  _[:,1] |>
+            [maximum(_), minimum(_)] |>
+            abs.(_) |>
+            maximum |>
+            _ * x_range_mulitplier
+
 
     # create the pixel data 
     pixel_data = zeros(x_pixels*y_pixels, 2)
@@ -97,43 +106,60 @@ function faded_plot(data
                     ,x_pixels 
                     ,y_pixels 
                     ;power = 0.05
-                    ,color = orange_fade
+                    ,colour = orange_fade
                     ,extra_black_levels = 10
                     ,x_range_mulitplier = 1.05
                     ,y_range_mulitplier = 1.05
                     ,y_column = 2
-                    ,calculate_distnaces = true)
+                    ,calculate_distances = true
+                    ,rebase_points = false)
 
-    if calculate_distnaces 
-        data = distances_matrix(data,
+    if calculate_distances 
+        distances_data = distances_matrix(data,
                                 x_pixels, 
                                 y_pixels,
                                 x_range_mulitplier = x_range_mulitplier,
                                 y_range_mulitplier = y_range_mulitplier,
                                 y_column = y_column)
+    else
+        distances_data = data
     end
 
     # add the extra black levels
-    color = @chain copy(color) begin
-        append!(
-            RGB{Float64}[
-                RGB{Float64}(0, 0, 0)
-                for i in 1:extra_black_levels
-            ]
-        )
+    # colour = @chain deepcopy(colour) begin
+    #     push!(
+    #         RGB{Float64}[
+    #             RGB{Float64}(0, 0, 0)
+    #             for i in 1:extra_black_levels
+    #         ]
+    #     )
+    # end
+    if extra_black_levels != 0 
+        colour = [colour; 
+                RGB{Float64}[
+                    RGB{Float64}(0, 0, 0) for i in 1:extra_black_levels
+                    ]
+                ]
     end
     
     # transform the values to plot into a matrix 
-    if size(data) == (x_pixels*y_pixels,)
-        data = 
-            @chain data begin
+    if size(distances_data) == (x_pixels*y_pixels,)
+        distances_data = 
+            @chain distances_data begin
                 reshape((x_pixels, y_pixels))
                 _ .^ power
                 transpose
             end
     else
-        data = @chain data begin
-            _ .^ power 
+        distances_data = distances_data .^ power 
+    end
+    
+    if rebase_points
+        min_val = minimum(distances_data)
+        
+        for (x,y) in eachrow(data)
+            distances_data[x,y] = min_val
+            break
         end
     end
 
@@ -141,8 +167,8 @@ function faded_plot(data
     plot = heatmap(
         1:x_pixels
         ,1:y_pixels
-        ,data
-        ,c = color
+        ,distances_data
+        ,c = colour
         ,legend = false
         ,xaxis = false
         ,yaxis = false
@@ -150,7 +176,7 @@ function faded_plot(data
         ,yticks = false
         ,size = (x_pixels, y_pixels)
         ,background_color = :transparent 
-        ,foreground_color = :transparent
+        # ,foreground_color = :transparent
     ) 
 
     return plot
